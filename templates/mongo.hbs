@@ -1,0 +1,19 @@
+---
+apiVersion: flux.weave.works/v1beta1
+kind: HelmRelease
+metadata:
+  name: mongo-{{namespace}}
+  namespace: {{namespace}}
+  annotations:
+    flux.weave.works/automated: "false"
+spec:
+  releaseName: mongo-{{namespace}}
+  chart:
+    repository: https://charts.bitnami.com/bitnami/
+    name: mongodb
+    version: 9.2.4
+  values:
+    auth:
+      existingSecret: mongo-secret
+    persistence:
+      storageClass: azuredisk-standardlrs-delete

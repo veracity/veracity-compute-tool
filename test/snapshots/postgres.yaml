@@ -1,0 +1,98 @@
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  creationTimestamp: null
+  name: postgres-secret
+  namespace: test
+spec:
+  encryptedData:
+    DATABASE_PASSWORD: **secret**
+  template:
+    metadata:
+      creationTimestamp: null
+      name: postgres-secret
+      namespace: test
+    type: Opaque
+
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-test
+  namespace: test
+spec:
+  selector:
+    matchLabels:
+      app: postgres-test
+  serviceName: postgres
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: postgres-test
+    spec:
+      containers:
+        - name: postgres-test
+          image: postgres:12.0
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: DATABASE_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+              name: postgresql
+          volumeMounts:
+            - mountPath: "/var/lib/postgresql/data"
+              name: postgres-test
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-test
+      spec:
+        storageClassName: azuredisk-standardlrs-delete
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: 'rbac.istio.io/v1alpha1'
+kind: ServiceRole
+metadata:
+  name: postgres-test
+  namespace: test
+spec:
+  rules:
+  - services: ["postgres"]
+---
+apiVersion: 'rbac.istio.io/v1alpha1'
+kind: ServiceRoleBinding
+metadata:
+  name: postgres-test
+  namespace: test
+spec:
+  subjects:
+    - user: "postgres-test-service-account"
+  roleRef:
+    kind: ServiceRole
+    name: postgres-test
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: test
+  labels:
+    app: postgres-test
+spec:
+  type: NodePort
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  selector:
+    app: postgres-test

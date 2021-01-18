@@ -1,0 +1,36 @@
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  creationTimestamp: null
+  name: mongo-secret
+  namespace: test
+spec:
+  encryptedData:
+    mongodb-root-password: **secret**
+  template:
+    metadata:
+      creationTimestamp: null
+      name: mongo-secret
+      namespace: test
+    type: Opaque
+
+
+---
+apiVersion: flux.weave.works/v1beta1
+kind: HelmRelease
+metadata:
+  name: mongo-test
+  namespace: test
+  annotations:
+    flux.weave.works/automated: "false"
+spec:
+  releaseName: mongo-test
+  chart:
+    repository: https://charts.bitnami.com/bitnami/
+    name: mongodb
+    version: 9.2.4
+  values:
+    auth:
+      existingSecret: mongo-secret
+    persistence:
+      storageClass: azuredisk-standardlrs-delete

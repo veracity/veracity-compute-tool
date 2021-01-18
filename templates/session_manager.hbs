@@ -1,0 +1,54 @@
+---
+apiVersion: flux.weave.works/v1beta1
+kind: HelmRelease
+metadata:
+  name: session-manager-{{releaseName}}
+  namespace: session-management
+  annotations:
+    flux.weave.works/automated: "true"
+    repository.fluxcd.io/container: platform-service.image.repository
+    tag.fluxcd.io/container: platform-service.image.tag
+    filter.fluxcd.io/container: glob:*
+
+spec:
+  releaseName: session-manager-{{releaseName}}
+  chart:
+    git: git@ssh.dev.azure.com:v3/dnvgl-one/PlatformTeam/platformdevcluster02-weu-configrepo
+    path: cluster/charts/session-manager
+    ref: master
+    skipDepUpdate: true
+  values:
+    platform-service:
+      image:
+        repository: "platformteam.azurecr.io/sessionmanager"
+        tag: "20201008.1"
+      additionalPodLabels: |
+        idp: {{releaseName}}
+      defaultRouting:
+        enabled: false
+      serviceAccount:
+        create: false
+      deploymentOnly: true
+      env:
+        SESSION_MANAGER_ID: {{releaseName}}
+        AUTHORITY: https://login.microsoftonline.com/te/dnvglb2cprod.onmicrosoft.com/B2C_1A_SignInWithADFSIdp/v2.0
+        SCOPE: https://dnvglb2cprod.onmicrosoft.com/83054ebf-1d7b-43f5-82ad-b2bde84d7b75/user_impersonation
+        CLIENT_ID: {{clientId}}
+        CLIENT_SECRET:
+          valueFrom:
+            secretKeyRef:
+              name: idp-{{releaseName}}-client
+              key: client-secret
+        LOGOUT_ENDPOINT: https://www.veracity.com/auth/logout
+        REPLY_URL_SUFFIX: veracity
+        VERACITY_POLICY_CHECK: "Enforce"
+        VERACITY_SERVICEID: {{serviceId}}
+        VERACITY_API_SUBSCRIPTION_KEY: {{subscriptionKey}}
+        VERACITY_SCOPE: "https://dnvglb2cprod.onmicrosoft.com/83054ebf-1d7b-43f5-82ad-b2bde84d7b75/user_impersonation"
+        VERACITY_API_URL: "https://api.veracity.com/Veracity/Services/V3"
+
+---
+# put this in session manager routing
+#     - name: {{releaseName}}
+#       host: {{host}}
+#       idp: {{releaseName}}

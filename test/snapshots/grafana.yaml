@@ -1,0 +1,150 @@
+---
+apiVersion: flux.weave.works/v1beta1
+kind: HelmRelease
+metadata:
+  name: grafana-test
+  namespace: test
+  annotations:
+    flux.weave.works/automated: "false"
+    repository.fluxcd.io/container: platform-service.image.repository
+    tag.fluxcd.io/container: platform-service.image.tag
+    filter.fluxcd.io/container: glob:*
+spec:
+  releaseName: grafana-test
+  chart:
+    git: https://github.com/dnvgl/service-mesh-chart
+    path: charts/platform-service
+    ref: platform-service-1.0.10
+    skipDepUpdate: true
+  values:
+    updateStrategy: NoSurge
+    additionalPodLabels: |
+      authn-redirect: disabled
+    app: grafana
+    image:
+      repository: "grafana/grafana"
+      tag: "7.3.1"
+      containerPort: 3000
+    defaultRouting:
+      catchAll: true
+      hosts:
+      - test
+    requestAuthentication:
+      enabled: false
+      jwtRules:
+      - issuer: "https://login.microsoftonline.com/a68572e3-63ce-4bc1-acdc-b64943502e9d/v2.0/"
+        jwksUri: "https://login.microsoftonline.com/te/a68572e3-63ce-4bc1-acdc-b64943502e9d/b2c_1a_signinwithadfsidp/discovery/v2.0/keys"
+        audiences: [83054ebf-1d7b-43f5-82ad-b2bde84d7b75]
+        forwardOriginalToken: true
+    env:
+      GF_SECURITY_ALLOW_EMBEDDING: true
+      GF_AUTH_DISABLE_LOGIN_FORM: true
+      GF_AUTH_ANONYMOUS_ENABLED: true
+      GF_AUTH_ANONYMOUS_ORG_NAME: Main Org.
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_USERS_ALLOW_SIGN_UP: false
+      GF_AUTH_PROXY_ENABLED: false
+    volumes:
+    - name: grafana-storage
+      mountPath: /var/lib/grafana
+      volumeDefinition: |
+        persistentVolumeClaim:
+          claimName: grafana-storage-pv-claim
+    - name: grafana-datasources
+      mountPath: /etc/grafana/provisioning/datasources
+      volumeDefinition: |  
+        configMap:
+          name: grafana-datasources
+    - name: grafana-dashboards
+      mountPath: /etc/grafana/provisioning/dashboards
+      volumeDefinition: |  
+        configMap:
+          name: grafana-dashboards
+    - name: dashboard
+      mountPath: /etc/dashboards
+      volumeDefinition: |  
+        configMap:
+          name: grafana-dashboards
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: grafana-storage-pv-claim
+  namespace: test
+  labels:
+    app: grafana
+spec:
+  storageClassName: azuredisk-standardlrs-delete
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: test
+data:
+  datasources.json: |-
+    {
+        "apiVersion": 1,
+        "datasources": [
+        ]
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: test
+data:
+  dashboards.yaml: |-
+    apiVersion: 1
+    providers:
+    - name: dashboards
+      type: file
+      updateIntervalSeconds: 30
+      options:
+        path: /etc/dashboards
+        foldersFromFilesStructure: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: test
+data:
+  dashboards.json: |-
+    {
+    }
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: allow-embedding-filter
+  namespace: test
+spec:
+  workloadSelector:
+    labels:
+      app: grafana
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: ANY
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.http_connection_manager"
+    patch:
+      operation: INSERT_BEFORE
+      value: # lua filter specification
+        name: envoy.lua
+        config:
+          inlineCode: |
+            function envoy_on_response(response_handle)
+              headers = response_handle:headers();
+              headers:add("X-Frame-Options", "SAMEORIGIN");              
+            end
+            

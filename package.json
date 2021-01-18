@@ -1,0 +1,28 @@
+{
+  "name": "veratools",
+  "version": "0.0.7",
+  "description": "",
+  "main": "index.js",
+  "bin": {
+    "vt": "./index.js"
+  },
+  "files": [
+    "cmds",
+    "templates"
+  ],
+  "scripts": {
+    "test": "mocha",
+    "coverage": "nyc npm run test"
+  },
+  "author": "Lars.Peder.Amlie@dnvgl.com",
+  "license": "ISC",
+  "dependencies": {
+    "handlebars": "^4.7.6",
+    "yargs": "^15.4.1"
+  },
+  "devDependencies": {
+    "mocha": "^8.2.1",
+    "mock-fs": "^4.13.0",
+    "nyc": "^15.1.0"
+  }
+}
